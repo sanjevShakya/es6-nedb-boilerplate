@@ -54,7 +54,7 @@ export function create(req, res, next) {
 export function update(req, res, next) {
   userService
     .updateUser(req.params.id, req.body)
-    .then((data) => res.json({ data }))
+    .then(() => res.json({ data: req.body }))
     .catch((err) => next(err));
 }
 
