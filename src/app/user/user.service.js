@@ -1,6 +1,5 @@
-import Boom from '@hapi/boom';
-
 import User from './user.model';
+import UserDTO from './user.dto';
 
 /**
  * Get all users.
@@ -8,7 +7,7 @@ import User from './user.model';
  * @returns {Promise}
  */
 export function getAllUsers() {
-  return User.fetchAll();
+  return User.find();
 }
 
 /**
@@ -18,12 +17,7 @@ export function getAllUsers() {
  * @returns {Promise}
  */
 export function getUser(id) {
-  return new User({ id })
-    .fetch()
-    .then((user) => user)
-    .catch(User.NotFoundError, () => {
-      throw Boom.notFound('User not found');
-    });
+  return User.find({ _id: id });
 }
 
 /**
@@ -33,7 +27,9 @@ export function getUser(id) {
  * @returns {Promise}
  */
 export function createUser(user) {
-  return new User({ name: user.name }).save();
+  const newUser = new UserDTO(user);
+
+  return User.insert(newUser);
 }
 
 /**
@@ -44,7 +40,7 @@ export function createUser(user) {
  * @returns {Promise}
  */
 export function updateUser(id, user) {
-  return new User({ id }).save({ name: user.name });
+  return User.update({ _id: id }, { ...user });
 }
 
 /**
@@ -54,5 +50,5 @@ export function updateUser(id, user) {
  * @returns {Promise}
  */
 export function deleteUser(id) {
-  return new User({ id }).fetch().then((user) => user.destroy());
+  return User.remove({ _id: id });
 }

@@ -1,24 +1,4 @@
 import db from '../../db';
+import { USER_TABLE } from '../../db/tableNames';
 
-const TABLE_NAME = 'users';
-
-/**
- * User model.
- */
-class User extends db.Model {
-  /**
-   * Get table name.
-   */
-  get tableName() {
-    return TABLE_NAME;
-  }
-
-  /**
-   * Table has timestamps.
-   */
-  get hasTimestamps() {
-    return true;
-  }
-}
-
-export default User;
+export default db[USER_TABLE];
