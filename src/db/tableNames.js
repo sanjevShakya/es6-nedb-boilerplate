@@ -1,1 +1,3 @@
 export const USER_TABLE = 'USER_TABLE';
+export const SUBJECT_TABLE = 'SUBJECT_TABLE';
+export const GAIT_RECORD_TABLE = 'GAIT_RECORD_TABLE';
