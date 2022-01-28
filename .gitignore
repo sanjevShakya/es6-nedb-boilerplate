@@ -44,3 +44,8 @@ coverage
 .vscode
 
 data/*
+
+gaitlogs/*
+
+ml_experiments/gl_dataset/*
+ml_experiments/*

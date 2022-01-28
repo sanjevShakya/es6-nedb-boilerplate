@@ -55,6 +55,7 @@
     "morgan": "^1.10.0",
     "nedb": "^1.8.0",
     "nedb-promises": "^5.0.2",
+    "numjs": "^0.16.1",
     "serialport": "^9.2.8",
     "serve-favicon": "^2.5.0",
     "socket.io": "^4.4.0",

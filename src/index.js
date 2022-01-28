@@ -20,6 +20,7 @@ import * as serialMiddleware from './core/middlewares/serialBus';
 import * as socketMiddleware from './core/middlewares/socket';
 import * as serialhandler from './app/serial/serialhandler';
 import { getAppServer } from './core/utils/socket';
+import * as serialDataService from './app/serial/serialDataService';
 const app = express();
 // const mqttClient = new MqttHandler();
 
@@ -83,17 +84,27 @@ const STATES = {
   RECORD: 2,
   PAUSE: 3,
 };
+
 let state = STATES.INIT;
+let subjectId = null;
+let gaitClassId = null;
+let serialToFileLogger = (f) => f;
 
 if (serial) {
   io.sockets.on('connection', function (socket) {
-    socket.on('getState', function () {
-      io.sockets.emit('stateChange', { value: state });
+    socket.on('initState', function (data) {
+      logger.info(`initState`, data);
+      subjectId = data.subjectId;
+      io.sockets.emit('stateChange', { value: STATES.INIT, subjectId: subjectId });
     });
 
     socket.on('stateChange', function (data) {
       state = +data.value;
-      logger.info(`socket state change: ${state}`);
+      if (!subjectId) {
+        subjectId = data.subjectId;
+      }
+
+      logger.info(`socket state change: ${state} for subject: ${subjectId}`);
       switch (state) {
         case STATES.INIT:
           serial.port.write(`${STATES.INIT}:INIT\n`);
@@ -108,13 +119,46 @@ if (serial) {
       io.sockets.emit('stateChange', { value: state });
     });
 
+    socket.on('gaitClassChange', function (data) {
+      gaitClassId = data.value;
+      subjectId = data.subjectId;
+      logger.info(`Gait class set to: ${gaitClassId}`);
+      io.sockets.emit('gaitClassChange', { value: gaitClassId });
+      io.sockets.emit('stateChange', { value: STATES.PAUSE });
+      serialToFileLogger = serialDataService.parseSaveAccelData(subjectId, gaitClassId);
+    });
+
     // socket.emit('led', { value: brightness });
     socket.emit('stateChange', { value: state });
+  });
+
+  serial.serialEventEmitter.on('SERIAL_INPUT', function (data) {
+    function parseData(data) {
+      const serialData = data.split(':');
+
+      if (serialData.length > 0) {
+        const action = serialData[0];
+        const payload = serialData[1];
+
+        return {
+          action,
+          payload,
+        };
+      }
+
+      return null;
+    }
+
+    const serialData = parseData(data);
+
+    if (serialData.action === '100') {
+      io.emit('serialData', { value: serialData.payload });
+      serialToFileLogger(serialData.payload + '\n');
+    }
   });
 }
 
 server.listen(app.get('port'), app.get('host'), () => {
-  // mqttClient.connect();
   logger.info(`Server started at http://${app.get('host')}:${app.get('port')}/api`);
 });
 
