@@ -159,6 +159,7 @@ if (serial) {
 }
 
 server.listen(app.get('port'), app.get('host'), () => {
+  serialDataService.makeDataFolderIfNotExist();
   logger.info(`Server started at http://${app.get('host')}:${app.get('port')}/api`);
 });
 
