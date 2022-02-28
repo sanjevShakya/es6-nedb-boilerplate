@@ -24,13 +24,16 @@ export const SOCKET_STATES = {
 let subjectId = null;
 let gaitClassId = null;
 let state = STATES.INIT;
-let leftSerialToFileLogger = (f) => f;
-let rightSerialToFileLogger = (f) => f;
+let leftSerialToFileLogger = undefined;
+let rightSerialToFileLogger = undefined;
 
-const SENSOR_SERIAL_HANDLER_MAP = {
-  [SENSORS.LEFT]: leftSerialToFileLogger,
-  [SENSORS.RIGHT]: rightSerialToFileLogger,
-};
+function setLeftSerialHandler(fn) {
+  leftSerialToFileLogger = fn;
+}
+
+function setRightSerialHandler(fn) {
+  rightSerialToFileLogger = fn;
+}
 
 function serialStateHandler(currentState, serial) {
   switch (currentState) {
@@ -70,9 +73,19 @@ function serialDataInputHandler(sensorName, data, io) {
 
   if (serialData.action === '100') {
     io.emit(SOCKET_STATES.serialData, { value: serialData.payload, sensorName: sensorName });
-    const serialToFileLogger = SENSOR_SERIAL_HANDLER_MAP[sensorName];
+    let serialToFileLogger = null;
 
-    serialToFileLogger(serialData.payload + '\n');
+    switch (sensorName) {
+      case SENSORS.LEFT:
+        serialToFileLogger = leftSerialToFileLogger;
+        break;
+      case SENSORS.RIGHT:
+        serialToFileLogger = rightSerialToFileLogger;
+        break;
+    }
+    if (typeof serialToFileLogger === 'function') {
+      serialToFileLogger(serialData.payload + '\n');
+    }
   }
 }
 
@@ -102,13 +115,12 @@ function handleAfterConnection(io, socket, serial) {
     logger.info(`Gait class set to: ${gaitClassId}`);
     io.sockets.emit(SOCKET_STATES.gaitClassChange, { value: gaitClassId });
     io.sockets.emit(SOCKET_STATES.stateChange, { value: STATES.PAUSE });
-    leftSerialToFileLogger = serialDataService.parseSaveAccelData(subjectId, gaitClassId, SENSORS.LEFT);
-    rightSerialToFileLogger = serialDataService.parseSaveAccelData(subjectId, gaitClassId, SENSORS.RIGHT);
+    setLeftSerialHandler(serialDataService.parseSaveAccelData(subjectId, gaitClassId, SENSORS.LEFT));
+    setRightSerialHandler(serialDataService.parseSaveAccelData(subjectId, gaitClassId, SENSORS.RIGHT));
   });
 
   // socket.emit('led', { value: brightness });
   socket.emit(SOCKET_STATES.stateChange, { value: state });
-
   serial.serialEventEmitter.on(serialEventNames.RIGHT_SERIAL_INPUT, (data) =>
     serialDataInputHandler(SENSORS.LEFT, data, io)
   );
@@ -122,5 +134,7 @@ export function handleSerialSocketBridge(io, serial) {
     return;
   }
 
-  io.sockets.on(SOCKET_STATES.connection, (socket) => handleAfterConnection(io, socket, serial));
+  io.sockets.on(SOCKET_STATES.connection, function (socket) {
+    handleAfterConnection(io, socket, serial);
+  });
 }

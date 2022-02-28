@@ -1,8 +1,8 @@
 import fs from 'fs';
 
 const WINDOW_SIZE = 128;
-const TRAIN_FILE_NAME = (label) => `gaitlogs/${label}/y_train.csv`;
-const SUBJECT_FILE_NAME = (label) => `gaitlogs/${label}/subject.csv`;
+const TRAIN_FILE_NAME = (sensorName, label) => `gaitlogs/${sensorName}/${label}/y_train.csv`;
+const SUBJECT_FILE_NAME = (sensorName, label) => `gaitlogs/${sensorName}/${label}/subject.csv`;
 
 function getFileName(sensorName, prefix, label) {
   return `gaitlogs/${sensorName}/${label}/data/acc_${prefix}_data.csv`;
@@ -80,12 +80,12 @@ function fillBucket(serialData, subjectId, gaitClassId, sensorName) {
         buckets[bucketKey] = bucket.slice(parseInt(WINDOW_SIZE * overlapPercent * 0.01));
         // Write only once
         if (bucketKey === 'ax') {
-          fs.appendFile(TRAIN_FILE_NAME(overlapLabel), gaitClassId + '\n', function (err) {
+          fs.appendFile(TRAIN_FILE_NAME(sensorName, overlapLabel), gaitClassId + '\n', function (err) {
             if (err) {
               console.error(err);
             }
           });
-          fs.appendFile(SUBJECT_FILE_NAME(overlapLabel), subjectId + '\n', function (err) {
+          fs.appendFile(SUBJECT_FILE_NAME(sensorName, overlapLabel), subjectId + '\n', function (err) {
             if (err) {
               console.error(err);
             }

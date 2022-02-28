@@ -3,18 +3,20 @@ import * as serialUtil from './serialUtil';
 import logger from '../../core/utils/logger';
 
 const BAUD_RATE = 115200;
-const PORT = '/dev/ttyACM0';
-const LEFT_PORT = '/dev/ttyACM1';
 const PORT_NAMES = {
   left: 'LEFT',
   right: 'RIGHT',
 };
 
-export function connect() {
+export async function connect() {
+  const devicesPort = (await serialUtil.getArduinoPorts()) || [];
+  const leftPortPath = devicesPort[0];
+  const rightPortPath = devicesPort[1];
+
   try {
     const serialEventEmitter = new EventEmitter();
-    const { port, parser } = serialUtil.initialize(PORT, BAUD_RATE);
-    const { port: leftPort, parser: leftParser } = serialUtil.initialize(LEFT_PORT, BAUD_RATE);
+    const { port, parser } = serialUtil.initialize(rightPortPath, BAUD_RATE);
+    const { port: leftPort, parser: leftParser } = serialUtil.initialize(leftPortPath, BAUD_RATE);
 
     if (!port || !parser) {
       throw new Error('Device not connected');
@@ -25,7 +27,7 @@ export function connect() {
     }
 
     port.on('open', () => {
-      portOpenHandler({ name: PORT_NAMES.right, port: PORT, baudRate: BAUD_RATE, serialEventEmitter });
+      portOpenHandler({ name: PORT_NAMES.right, port: rightPortPath, baudRate: BAUD_RATE, serialEventEmitter });
     });
 
     parser.on('data', (data) => {
@@ -33,7 +35,7 @@ export function connect() {
     });
 
     leftPort.on('open', () => {
-      portOpenHandler({ name: PORT_NAMES.left, port: PORT, baudRate: BAUD_RATE, serialEventEmitter });
+      portOpenHandler({ name: PORT_NAMES.left, port: leftPortPath, baudRate: BAUD_RATE, serialEventEmitter });
     });
 
     leftParser.on('data', (data) => {
@@ -49,7 +51,6 @@ export function connect() {
     };
   } catch (err) {
     logger.error('Error connecting to serial port. Is serial device attached?');
-
     // return null;
     throw err;
   }

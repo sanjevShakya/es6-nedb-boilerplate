@@ -30,57 +30,63 @@ const APP_PORT =
 const APP_HOST = process.env.APP_HOST || '0.0.0.0';
 
 const pathToSwaggerUi = require('swagger-ui-dist').absolutePath();
-let serial = null;
+// let serial = null;
 
-try {
-  serial = serialhandler.connect();
-} catch (err) {
-  // pass.connect
+async function initializeExpressApp() {
+  const serial = await serialhandler.connect();
+
+  app.set('port', APP_PORT);
+  app.set('host', APP_HOST);
+
+  app.locals.title = process.env.APP_NAME;
+  app.locals.version = process.env.APP_VERSION;
+
+  // This request handler must be the first middleware on the app
+  if (serial) {
+    app.use(serialMiddleware.injectSerial(serial));
+  }
+  app.use(favicon(path.join(__dirname, '/../public', 'favicon.ico')));
+  app.use(express.static('public'));
+  app.use(cors());
+  app.use(helmet());
+  app.use(compression());
+  app.use(morgan('tiny', { stream: logStream }));
+  app.use(bodyParser.json());
+  app.use(bodyParser.urlencoded({ extended: true }));
+  app.use(errorHandler.bodyParser);
+  app.use(json);
+
+  // API Routes
+  app.use('/api', routes);
+
+  // Swagger UI
+  // Workaround for changing the default URL in swagger.json
+  // https://github.com/swagger-api/swagger-ui/issues/4624
+  const swaggerIndexContent = fs
+    .readFileSync(`${pathToSwaggerUi}/index.html`)
+    .toString()
+    .replace('https://petstore.swagger.io/v2/swagger.json', '/api/swagger.json');
+
+  app.get('/api-docs/index.html', (req, res) => res.send(swaggerIndexContent));
+  app.get('/api-docs', (req, res) => res.redirect('/api-docs/index.html'));
+  app.use('/api-docs', express.static(pathToSwaggerUi));
+
+  // Error Middleware
+  app.use(errorHandler.genericErrorHandler);
+  app.use(errorHandler.methodNotAllowed);
+  const { server, io } = getAppServer(app);
+
+  app.use(socketMiddleware.injectSocketObject(io));
+
+  handleSerialSocketBridge(io, serial);
+
+  server.listen(app.get('port'), app.get('host'), () => {
+    Object.keys(SENSORS).map((key) => serialDataService.makeDataFolderIfNotExist(SENSORS[key]));
+    logger.info(`Server started at http://${app.get('host')}:${app.get('port')}/api`);
+  });
+
+  return app;
 }
-app.set('port', APP_PORT);
-app.set('host', APP_HOST);
-
-app.locals.title = process.env.APP_NAME;
-app.locals.version = process.env.APP_VERSION;
-
-// This request handler must be the first middleware on the app
-if (serial) {
-  app.use(serialMiddleware.injectSerial(serial));
-}
-app.use(favicon(path.join(__dirname, '/../public', 'favicon.ico')));
-app.use(express.static('public'));
-app.use(cors());
-app.use(helmet());
-app.use(compression());
-app.use(morgan('tiny', { stream: logStream }));
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(errorHandler.bodyParser);
-app.use(json);
-
-// API Routes
-app.use('/api', routes);
-
-// Swagger UI
-// Workaround for changing the default URL in swagger.json
-// https://github.com/swagger-api/swagger-ui/issues/4624
-const swaggerIndexContent = fs
-  .readFileSync(`${pathToSwaggerUi}/index.html`)
-  .toString()
-  .replace('https://petstore.swagger.io/v2/swagger.json', '/api/swagger.json');
-
-app.get('/api-docs/index.html', (req, res) => res.send(swaggerIndexContent));
-app.get('/api-docs', (req, res) => res.redirect('/api-docs/index.html'));
-app.use('/api-docs', express.static(pathToSwaggerUi));
-
-// Error Middleware
-app.use(errorHandler.genericErrorHandler);
-app.use(errorHandler.methodNotAllowed);
-const { server, io } = getAppServer(app);
-
-app.use(socketMiddleware.injectSocketObject(io));
-
-handleSerialSocketBridge(io, serial);
 
 // TODO move this logic to some service layer
 // const STATES = {
@@ -162,10 +168,7 @@ handleSerialSocketBridge(io, serial);
 //   });
 // }
 
-server.listen(app.get('port'), app.get('host'), () => {
-  Object.keys(SENSORS).map((key) => serialDataService.makeDataFolderIfNotExist(SENSORS[key]));
-  logger.info(`Server started at http://${app.get('host')}:${app.get('port')}/api`);
-});
+const expressApp = initializeExpressApp();
 
 // Catch unhandled rejections
 process.on('unhandledRejection', (err) => {
@@ -179,4 +182,4 @@ process.on('uncaughtException', (err) => {
   process.exit(1);
 });
 
-export default app;
+export default expressApp;
