@@ -55,6 +55,11 @@ async function initializeExpressApp() {
   app.use(bodyParser.urlencoded({ extended: true }));
   app.use(errorHandler.bodyParser);
   app.use(json);
+  const { server, io } = getAppServer(app);
+
+  app.use(socketMiddleware.injectSocketObject(io));
+
+  handleSerialSocketBridge(io, serial);
 
   // API Routes
   app.use('/api', routes);
@@ -74,11 +79,6 @@ async function initializeExpressApp() {
   // Error Middleware
   app.use(errorHandler.genericErrorHandler);
   app.use(errorHandler.methodNotAllowed);
-  const { server, io } = getAppServer(app);
-
-  app.use(socketMiddleware.injectSocketObject(io));
-
-  handleSerialSocketBridge(io, serial);
 
   server.listen(app.get('port'), app.get('host'), () => {
     Object.keys(SENSORS).map((key) => serialDataService.makeDataFolderIfNotExist(SENSORS[key]));
