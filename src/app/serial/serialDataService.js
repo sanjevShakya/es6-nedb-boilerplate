@@ -25,19 +25,19 @@ const OVERLAP_LABELS = {
   100: 'data_0_overlap',
 };
 const OVERLAP_PERCENTS = Object.keys(OVERLAP_LABELS);
-const BUCKET_KEYS = ['y', 'p', 'r', 'gx', 'gy', 'gz', 'ax', 'ay', 'az'];
+const BUCKET_KEYS = ['ax', 'ay', 'az', 'gx', 'gy', 'gz', 'y', 'p', 'r'];
 
 function getBucket(overlapPercent) {
   return {
-    y: [],
-    p: [],
-    r: [],
     ax: [],
     ay: [],
     az: [],
     gx: [],
     gy: [],
     gz: [],
+    y: [],
+    p: [],
+    r: [],
     overlapPercent,
   };
 }
