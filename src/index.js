@@ -22,6 +22,7 @@ import * as socketMiddleware from './core/middlewares/socket';
 import * as serialhandler from './app/serial/serialhandler';
 import { getAppServer } from './core/utils/socket';
 import * as serialDataService from './app/serial/serialDataService';
+import { interpreter } from './app/ml/predict';
 const app = express();
 // const mqttClient = new MqttHandler();
 
@@ -30,10 +31,11 @@ const APP_PORT =
 const APP_HOST = process.env.APP_HOST || '0.0.0.0';
 
 const pathToSwaggerUi = require('swagger-ui-dist').absolutePath();
+const pathToModel = path.join(__dirname, '/app/ml');
 // let serial = null;
 
 async function initializeExpressApp() {
-  const serial = await serialhandler.connect();
+  const serialInterfaces = await serialhandler.connect();
 
   app.set('port', APP_PORT);
   app.set('host', APP_HOST);
@@ -42,8 +44,9 @@ async function initializeExpressApp() {
   app.locals.version = process.env.APP_VERSION;
 
   // This request handler must be the first middleware on the app
-  if (serial) {
-    app.use(serialMiddleware.injectSerial(serial));
+  // app.use(mlMiddleware.injectML(ml));
+  if (serialInterfaces) {
+    app.use(serialMiddleware.injectSerial(serialInterfaces));
   }
   app.use(favicon(path.join(__dirname, '/../public', 'favicon.ico')));
   app.use(express.static('public'));
@@ -59,7 +62,7 @@ async function initializeExpressApp() {
 
   app.use(socketMiddleware.injectSocketObject(io));
 
-  handleSerialSocketBridge(io, serial);
+  handleSerialSocketBridge(io, serialInterfaces);
 
   // API Routes
   app.use('/api', routes);
@@ -75,14 +78,18 @@ async function initializeExpressApp() {
   app.get('/api-docs/index.html', (req, res) => res.send(swaggerIndexContent));
   app.get('/api-docs', (req, res) => res.redirect('/api-docs/index.html'));
   app.use('/api-docs', express.static(pathToSwaggerUi));
+  app.use('/ml-model', express.static(pathToModel));
 
   // Error Middleware
   app.use(errorHandler.genericErrorHandler);
   app.use(errorHandler.methodNotAllowed);
 
-  server.listen(app.get('port'), app.get('host'), () => {
+  server.listen(app.get('port'), app.get('host'), async () => {
     Object.keys(SENSORS).map((key) => serialDataService.makeDataFolderIfNotExist(SENSORS[key]));
     logger.info(`Server started at http://${app.get('host')}:${app.get('port')}/api`);
+    const ml = await interpreter();
+
+    app.set('ml', ml);
   });
 
   return app;

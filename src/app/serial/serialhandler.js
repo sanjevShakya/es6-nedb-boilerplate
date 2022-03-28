@@ -8,63 +8,81 @@ const PORT_NAMES = {
   right: 'RIGHT',
 };
 
+function portOpenHandler({ name, port, baudRate, serialEventEmitter }) {
+  logger.info(`${name} foot Serial port open on ${port} at ${baudRate} baudrate`);
+  const eventName = name + '_SERIAL_PORT_OPEN';
+
+  serialEventEmitter.emit(eventName);
+}
+
+function dataReceiveHandler({ name, serialEventEmitter, data }) {
+  const eventName = name + '_SERIAL_INPUT';
+
+  serialEventEmitter.emit(eventName, data);
+}
+
+// function initializePortAttachHandler(portPath, name, serialEventEmitter) {
+//   const { port, parser } = serialUtil.initialize(portPath, BAUD_RATE);
+
+//   if (!port || !parser) {
+//     throw new Error(`${portPath}::Device not connected`);
+//   }
+
+//   port.on('open', () => {
+//     portOpenHandler({ name: name, port: portPath, baudRate: BAUD_RATE, serialEventEmitter });
+//   });
+
+//   parser.on('data', (data) => {
+//     dataReceiveHandler({ data, name: name, serialEventEmitter });
+//   });
+// }
+
 export async function connect() {
   const devicesPort = (await serialUtil.getArduinoPorts()) || [];
-  const leftPortPath = devicesPort[0];
-  const rightPortPath = devicesPort[1];
 
   try {
     const serialEventEmitter = new EventEmitter();
-    const { port, parser } = serialUtil.initialize(rightPortPath, BAUD_RATE);
-    const { port: leftPort, parser: leftParser } = serialUtil.initialize(leftPortPath, BAUD_RATE);
 
-    if (!port || !parser) {
-      throw new Error('Device not connected');
-    }
+    const serialInterfaces = devicesPort.map((devicePort, index) => {
+      const { port, parser } = serialUtil.initialize(devicePort, BAUD_RATE);
+      let deviceName;
 
-    if (!leftPort || !leftParser) {
-      throw new Error('Left device not connected');
-    }
+      if (index === 0) {
+        deviceName = PORT_NAMES.right;
+        // assign right
+      }
 
-    port.on('open', () => {
-      portOpenHandler({ name: PORT_NAMES.right, port: rightPortPath, baudRate: BAUD_RATE, serialEventEmitter });
-    });
+      if (index === 1) {
+        // asign left
+        deviceName = PORT_NAMES.left;
+      }
 
-    parser.on('data', (data) => {
-      dataReceiveHandler({ data, name: PORT_NAMES.right, serialEventEmitter });
-    });
+      if (index > 1) {
+        // assign anything
+        deviceName = devicePort;
+      }
 
-    leftPort.on('open', () => {
-      portOpenHandler({ name: PORT_NAMES.left, port: leftPortPath, baudRate: BAUD_RATE, serialEventEmitter });
-    });
+      port.on('open', () => {
+        portOpenHandler({ name: deviceName, port: devicePort, baudRate: BAUD_RATE, serialEventEmitter });
+      });
 
-    leftParser.on('data', (data) => {
-      dataReceiveHandler({ data, name: PORT_NAMES.left, serialEventEmitter });
+      parser.on('data', (data) => {
+        dataReceiveHandler({ data, name: deviceName, serialEventEmitter });
+      });
+
+      return {
+        port,
+        parser,
+      };
     });
 
     return {
-      port: port,
-      parser: parser,
-      leftPort: leftPort,
-      leftParser: leftParser,
-      serialEventEmitter: serialEventEmitter,
+      serialEventEmitter,
+      serialInterfaces,
     };
   } catch (err) {
     logger.error('Error connecting to serial port. Is serial device attached?');
     // return null;
     throw err;
-  }
-
-  function portOpenHandler({ name, port, baudRate, serialEventEmitter }) {
-    logger.info(`${name} foot Serial port open on ${port} at ${baudRate} baudrate`);
-    const eventName = name + '_SERIAL_PORT_OPEN';
-
-    serialEventEmitter.emit(eventName);
-  }
-
-  function dataReceiveHandler({ name, serialEventEmitter, data }) {
-    const eventName = name + '_SERIAL_INPUT';
-
-    serialEventEmitter.emit(eventName, data);
   }
 }

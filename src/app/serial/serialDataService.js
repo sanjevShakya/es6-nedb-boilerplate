@@ -79,6 +79,7 @@ function fillBucket(serialData, subjectId, gaitClassId, sensorName) {
         });
         buckets[bucketKey] = bucket.slice(parseInt(WINDOW_SIZE * overlapPercent * 0.01));
         // Write only once
+        // Dont just see one bucket being fill have a check if
         if (bucketKey === 'ax') {
           fs.appendFile(TRAIN_FILE_NAME(sensorName, overlapLabel), gaitClassId + '\n', function (err) {
             if (err) {
