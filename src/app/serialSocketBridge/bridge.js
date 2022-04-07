@@ -1,9 +1,15 @@
 import logger from '../../core/utils/logger';
 import * as serialEventNames from '../serial/serialEventNames';
 import * as serialDataService from '../serial/serialDataService';
-import { interpreter } from '../ml/predict';
+import { interpreter, modelNames, mlModelMap } from '../ml/predict';
 import CircularBuffer from 'circular-buffer';
 import * as tf from '@tensorflow/tfjs';
+import { performance } from 'perf_hooks';
+require('dotenv');
+import np from 'numjs';
+
+const modelName = process.env.MODEL;
+const currentModelConfig = mlModelMap[modelName];
 
 export const SENSORS = {
   LEFT: 'LEFT',
@@ -30,6 +36,48 @@ export const SOCKET_EVENTS = {
   INFERENCE_STARTED: 'INFERENCE_STARTED',
 };
 
+const average = (arr) => arr.reduce((a, b) => a + b, 0) / arr.length;
+const arrMax = (arr = []) => Math.max(...arr);
+const arrMin = (arr = []) => Math.min(...arr);
+const sum = (arr) => arr.reduce((a, b) => a + b, 0);
+const npMax = (arr, channel) => np.max(arr.tolist()[channel]);
+const npMean = (arr, channel) => np.mean(arr.tolist()[channel]);
+const npStd = (arr, channel) => np.std(arr.tolist()[channel]);
+const computeMedian = (arr, channel) => {
+  const values = arr.tolist()[channel].sort((a, b) => a - b);
+  const mid = 63; // because list is always of len 128
+
+  return values[mid];
+};
+
+export const timeit = () => {
+  let t1 = null;
+  let t2 = null;
+
+  return {
+    start: start,
+    stop: stop,
+  };
+
+  function start() {
+    t2 = null;
+    t1 = performance.now();
+  }
+
+  function stop() {
+    if (!t1) {
+      throw new Error('Start the timer first');
+    }
+    t2 = performance.now();
+    const elapsedTime = (t2 - t1) / 1000;
+
+    // console.log(`Time Elapsed: ${elapsedTime} s`);
+    // logger.info(`Inference time for 1000 ${state} for subject: ${subjectId}`);
+
+    return elapsedTime;
+  }
+};
+
 let subjectId = null;
 let gaitClassId = null;
 let state = STATES.INIT;
@@ -48,6 +96,8 @@ let predictionCountMap = {
   4: 0,
 };
 const PREDICTION_COUNT_THRESHOLD = 10;
+let inferenceTimings = [];
+const inferenceLimits = [10, 100];
 
 function setPredictionCountMap(key, value) {
   const initialValue = Array(5)
@@ -62,6 +112,10 @@ function setPredictionCountMap(key, value) {
   initialValue[key] = value;
 
   return initialValue;
+}
+
+function computeResultantVector(x, y, z) {
+  return Math.sqrt(x ** 2 + y ** 2 + z ** 2);
 }
 
 function checkPredictionCount() {
@@ -157,20 +211,62 @@ function serialDataInputHandler(sensorName, data, io) {
 
     bufferCount++;
 
-    circularBuffer.push(serialData.payload.split(','));
+    const sD = serialData.payload.split(',').map((val) => Number(val));
+
+    if (sD.length === 9) {
+      sD.push(computeResultantVector(sD[0], sD[1], sD[2]));
+      sD.push(computeResultantVector(sD[3], sD[4], sD[5]));
+      sD.push(computeResultantVector(sD[6], sD[7], sD[8]));
+    }
+    circularBuffer.push(sD);
 
     if (bufferCount === windowSize) {
       isBufferFilledOnce = true;
     }
 
-    if (bufferIndex % 64 === 0 && isBufferFilledOnce) {
+    if (isBufferFilledOnce) {
       // INFERENCE HERE
-      let tensor = tf.tensor(circularBuffer.toarray(), [128, 9], 'float32');
+      // take the values from the circular buffer and make a tensor
+      let tensor = tf.tensor(circularBuffer.toarray(), [128, 12], 'float32');
+      let statValues = np.array(circularBuffer.toarray(), 'float32');
+      const statFeatures = [];
+      let statTensor;
 
-      tensor = tensor.reshape([1, 128, 9, 1]);
+      // compute statistical features based on what model is set in the environment variable
+      if (modelName === modelNames.CNN_STAT) {
+        statValues = np.reshape(statValues, [12, 128]);
+        // compute statistical features of 128 window for specified channels of 9,10,11
+        // as done during the training session
+        for (let channel = 9; channel < 12; channel++) {
+          const std = npStd(statValues, channel);
+          const mean = npMean(statValues, channel);
+          const max = npMax(statValues, channel);
+          const median = computeMedian(statValues, channel);
 
-      if (ml && tensor.shape[1] === 128 && tensor.shape[2] === 9) {
-        const result = ml(tensor);
+          statFeatures.push(std, mean, max, median);
+        }
+        statTensor = tf.tensor(statFeatures, currentModelConfig.statTensorShape, 'float32');
+      }
+
+      const modelShape = currentModelConfig.tensorShape;
+
+      tensor = tensor.reshape(modelShape);
+      const channelPosition = currentModelConfig.tensorShape.length - 2;
+      // Inference th model here
+
+      if (ml && tensor.shape[channelPosition] === 12) {
+        const timer = timeit();
+        let result;
+
+        timer.start();
+
+        if (modelName === modelNames.CNN_STAT && statTensor) {
+          // model requires two input for statistical inference.
+          result = ml([tensor, statTensor]);
+        } else {
+          // cnn, cnn-lstm requires just one input for inference
+          result = ml(tensor);
+        }
         const yPred = result.arraySync()[0];
 
         for (let i = 0; i < yPred.length; i++) {
@@ -187,6 +283,43 @@ function serialDataInputHandler(sensorName, data, io) {
           io.sockets.emit(SOCKET_EVENTS.INFERENCE_RESULT, { value: predictedLabel });
           // Reset after INFERENCE
           predictionCountMap = setPredictionCountMap(predictedLabel, 0);
+        }
+        const elapsedIime = timer.stop();
+
+        inferenceTimings.push(elapsedIime);
+
+        if (
+          Array.isArray(inferenceLimits) &&
+          inferenceLimits.length > 0 &&
+          inferenceTimings.length >= inferenceLimits[inferenceLimits.length - 1]
+        ) {
+          // compute mean, max, mode for 1000 inferences
+          const sumInferences = sum(inferenceTimings);
+
+          logger.info(`MODEL NAME: ${currentModelConfig.name}`);
+          logger.info(
+            `Sum Inference Time for ${inferenceLimits[inferenceLimits.length - 1]} inferences: ${String(
+              sumInferences.toFixed(6)
+            )}`
+          );
+          logger.info(
+            `Average Inference Time for ${inferenceLimits[inferenceLimits.length - 1]} inferences: ${String(
+              average(inferenceTimings).toFixed(6)
+            )}`
+          );
+          logger.info(
+            `Max Inference for ${inferenceLimits[inferenceLimits.length - 1]} inferences: ${String(
+              arrMax(inferenceTimings).toFixed(6)
+            )}`
+          );
+          logger.info(
+            `Min Inference for ${inferenceLimits[inferenceLimits.length - 1]} inferences: ${String(
+              arrMin(inferenceTimings).toFixed(6)
+            )}`
+          );
+          // clear the array
+          inferenceLimits.pop();
+          inferenceTimings = [];
         }
         // check if predictionCountMap count is above some threshold
       }
