@@ -3,7 +3,7 @@ import * as serialEventNames from '../serial/serialEventNames';
 import * as serialDataService from '../serial/serialDataService';
 import { interpreter, modelNames, mlModelMap } from '../ml/predict';
 import CircularBuffer from 'circular-buffer';
-import * as tf from '@tensorflow/tfjs';
+import * as tf from '@tensorflow/tfjs-node';
 import { performance } from 'perf_hooks';
 require('dotenv');
 import np from 'numjs';

@@ -45,6 +45,7 @@
     "@sentry/node": "^5.29.2",
     "@serialport/parser-readline": "^10.3.0",
     "@tensorflow/tfjs": "^3.15.0",
+    "@tensorflow/tfjs-node": "^3.15.0",
     "body-parser": "^1.19.0",
     "circular-buffer": "^1.0.3",
     "compression": "^1.7.4",
