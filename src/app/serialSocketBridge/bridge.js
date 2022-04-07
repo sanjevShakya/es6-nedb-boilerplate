@@ -97,7 +97,7 @@ let predictionCountMap = {
 };
 const PREDICTION_COUNT_THRESHOLD = 10;
 let inferenceTimings = [];
-const inferenceLimits = [10, 100];
+const inferenceLimits = [1, 10, 100, 1000, 10000];
 
 function setPredictionCountMap(key, value) {
   const initialValue = Array(5)
@@ -297,26 +297,19 @@ function serialDataInputHandler(sensorName, data, io) {
           const sumInferences = sum(inferenceTimings);
 
           logger.info(`MODEL NAME: ${currentModelConfig.name}`);
+          logger.info('--------------------------------------------------');
+          logger.info(`S | ${inferenceLimits[inferenceLimits.length - 1]} | ${String(sumInferences.toFixed(6))}`);
           logger.info(
-            `Sum Inference Time for ${inferenceLimits[inferenceLimits.length - 1]} inferences: ${String(
-              sumInferences.toFixed(6)
-            )}`
+            `A | ${inferenceLimits[inferenceLimits.length - 1]} | ${String(average(inferenceTimings).toFixed(6))}`
           );
           logger.info(
-            `Average Inference Time for ${inferenceLimits[inferenceLimits.length - 1]} inferences: ${String(
-              average(inferenceTimings).toFixed(6)
-            )}`
+            `M | ${inferenceLimits[inferenceLimits.length - 1]} | ${String(arrMax(inferenceTimings).toFixed(6))}`
           );
           logger.info(
-            `Max Inference for ${inferenceLimits[inferenceLimits.length - 1]} inferences: ${String(
-              arrMax(inferenceTimings).toFixed(6)
-            )}`
+            `m | ${inferenceLimits[inferenceLimits.length - 1]} | ${String(arrMin(inferenceTimings).toFixed(6))}`
           );
-          logger.info(
-            `Min Inference for ${inferenceLimits[inferenceLimits.length - 1]} inferences: ${String(
-              arrMin(inferenceTimings).toFixed(6)
-            )}`
-          );
+          logger.info('--------------------------------------------------');
+          logger.info('--------------------------------------------------');
           // clear the array
           inferenceLimits.pop();
           inferenceTimings = [];
