@@ -36,10 +36,10 @@ export const SOCKET_EVENTS = {
   INFERENCE_STARTED: 'INFERENCE_STARTED',
 };
 
-const average = (arr) => arr.reduce((a, b) => a + b, 0) / arr.length;
-const arrMax = (arr = []) => Math.max(...arr);
-const arrMin = (arr = []) => Math.min(...arr);
-const sum = (arr) => arr.reduce((a, b) => a + b, 0);
+// const average = (arr) => arr.reduce((a, b) => a + b, 0) / arr.length;
+// const arrMax = (arr = []) => Math.max(...arr);
+// const arrMin = (arr = []) => Math.min(...arr);
+// const sum = (arr) => arr.reduce((a, b) => a + b, 0);
 const npMax = (arr, channel) => np.max(arr.tolist()[channel]);
 const npMean = (arr, channel) => np.mean(arr.tolist()[channel]);
 const npStd = (arr, channel) => np.std(arr.tolist()[channel]);
@@ -95,9 +95,9 @@ let predictionCountMap = {
   3: 0,
   4: 0,
 };
-const PREDICTION_COUNT_THRESHOLD = 10;
-let inferenceTimings = [];
-const inferenceLimits = [1, 10, 100, 1000, 10000];
+const PREDICTION_COUNT_THRESHOLD = 2;
+// let inferenceTimings = [];
+// const inferenceLimits = [1, 10, 100, 1000, 10000];
 
 function setPredictionCountMap(key, value) {
   const initialValue = Array(5)
@@ -120,7 +120,7 @@ function computeResultantVector(x, y, z) {
 
 function checkPredictionCount() {
   return Object.keys(predictionCountMap).reduce((acc, curr) => {
-    if (predictionCountMap[curr] >= PREDICTION_COUNT_THRESHOLD) {
+    if (predictionCountMap[curr] > PREDICTION_COUNT_THRESHOLD) {
       acc = curr;
     }
 
@@ -254,11 +254,11 @@ function serialDataInputHandler(sensorName, data, io) {
       const channelPosition = currentModelConfig.tensorShape.length - 2;
       // Inference th model here
 
-      if (ml && tensor.shape[channelPosition] === 12) {
-        const timer = timeit();
+      if (ml && tensor.shape[channelPosition] === 12 && bufferIndex % 32 === 0) {
+        // const timer = timeit();
         let result;
 
-        timer.start();
+        // timer.start();
 
         if (modelName === modelNames.CNN_STAT && statTensor) {
           // model requires two input for statistical inference.
@@ -284,36 +284,36 @@ function serialDataInputHandler(sensorName, data, io) {
           // Reset after INFERENCE
           predictionCountMap = setPredictionCountMap(predictedLabel, 0);
         }
-        const elapsedIime = timer.stop();
+        // const elapsedIime = timer.stop();
 
-        inferenceTimings.push(elapsedIime);
+        // inferenceTimings.push(elapsedIime);
 
-        if (
-          Array.isArray(inferenceLimits) &&
-          inferenceLimits.length > 0 &&
-          inferenceTimings.length >= inferenceLimits[inferenceLimits.length - 1]
-        ) {
-          // compute mean, max, mode for 1000 inferences
-          const sumInferences = sum(inferenceTimings);
+        // if (
+        //   Array.isArray(inferenceLimits) &&
+        //   inferenceLimits.length > 0 &&
+        //   inferenceTimings.length >= inferenceLimits[inferenceLimits.length - 1]
+        // ) {
+        //   // compute mean, max, mode for 1000 inferences
+        //   const sumInferences = sum(inferenceTimings);
 
-          logger.info(`MODEL NAME: ${currentModelConfig.name}`);
-          logger.info('--------------------------------------------------');
-          logger.info(`S | ${inferenceLimits[inferenceLimits.length - 1]} | ${String(sumInferences.toFixed(6))}`);
-          logger.info(
-            `A | ${inferenceLimits[inferenceLimits.length - 1]} | ${String(average(inferenceTimings).toFixed(6))}`
-          );
-          logger.info(
-            `M | ${inferenceLimits[inferenceLimits.length - 1]} | ${String(arrMax(inferenceTimings).toFixed(6))}`
-          );
-          logger.info(
-            `m | ${inferenceLimits[inferenceLimits.length - 1]} | ${String(arrMin(inferenceTimings).toFixed(6))}`
-          );
-          logger.info('--------------------------------------------------');
-          logger.info('--------------------------------------------------');
-          // clear the array
-          inferenceLimits.pop();
-          inferenceTimings = [];
-        }
+        //   logger.info(`MODEL NAME: ${currentModelConfig.name}`);
+        //   logger.info('--------------------------------------------------');
+        //   logger.info(`S | ${inferenceLimits[inferenceLimits.length - 1]} | ${String(sumInferences.toFixed(6))}`);
+        //   logger.info(
+        //     `A | ${inferenceLimits[inferenceLimits.length - 1]} | ${String(average(inferenceTimings).toFixed(6))}`
+        //   );
+        //   logger.info(
+        //     `M | ${inferenceLimits[inferenceLimits.length - 1]} | ${String(arrMax(inferenceTimings).toFixed(6))}`
+        //   );
+        //   logger.info(
+        //     `m | ${inferenceLimits[inferenceLimits.length - 1]} | ${String(arrMin(inferenceTimings).toFixed(6))}`
+        //   );
+        //   logger.info('--------------------------------------------------');
+        //   logger.info('--------------------------------------------------');
+        //   // clear the array
+        //   inferenceLimits.pop();
+        //   inferenceTimings = [];
+        // }
         // check if predictionCountMap count is above some threshold
       }
     }

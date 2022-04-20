@@ -21,22 +21,6 @@ function dataReceiveHandler({ name, serialEventEmitter, data }) {
   serialEventEmitter.emit(eventName, data);
 }
 
-// function initializePortAttachHandler(portPath, name, serialEventEmitter) {
-//   const { port, parser } = serialUtil.initialize(portPath, BAUD_RATE);
-
-//   if (!port || !parser) {
-//     throw new Error(`${portPath}::Device not connected`);
-//   }
-
-//   port.on('open', () => {
-//     portOpenHandler({ name: name, port: portPath, baudRate: BAUD_RATE, serialEventEmitter });
-//   });
-
-//   parser.on('data', (data) => {
-//     dataReceiveHandler({ data, name: name, serialEventEmitter });
-//   });
-// }
-
 export async function connect() {
   const devicesPort = (await serialUtil.getArduinoPorts()) || [];
 

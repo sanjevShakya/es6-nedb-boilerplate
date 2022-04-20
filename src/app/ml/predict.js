@@ -1,11 +1,11 @@
 import * as tf from '@tensorflow/tfjs';
-// import modelJson from './model.json';
 require('dotenv');
 
 export const modelNames = {
   CNN: 'cnn',
   CNN_STAT: 'cnnStat',
   CNN_LSTM: 'cnnLSTM',
+  CNN_LSTM_BEST: 'cnnLSTMBest',
 };
 
 export const mlModelMap = {
@@ -29,6 +29,14 @@ export const mlModelMap = {
   [modelNames.CNN_LSTM]: {
     name: 'CNN LSTM variant',
     path: 'ml-model/tensorjs-cnn-lstm-best/model.json',
+    tensorShape: [1, 4, 32, 12, 1],
+    reshape: true,
+    multiInput: false,
+    computeStatisticalFeatures: false,
+  },
+  [modelNames.CNN_LSTM_BEST]: {
+    name: 'CNN LSTM variant',
+    path: 'ml-model/tensorjs-cnn-lstm-state-of-art/model.json',
     tensorShape: [1, 4, 32, 12, 1],
     reshape: true,
     multiInput: false,
