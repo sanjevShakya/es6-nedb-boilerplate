@@ -1,44 +1,72 @@
 import EventEmitter from 'events';
 import * as serialUtil from './serialUtil';
-import * as serialEventNames from './serialEventNames';
 import logger from '../../core/utils/logger';
 
-const BAUD_RATE = 9600;
-const PORT = '/dev/ttyACM0';
+const BAUD_RATE = 115200;
+const PORT_NAMES = {
+  left: 'LEFT',
+  right: 'RIGHT',
+};
 
-export function connect() {
+function portOpenHandler({ name, port, baudRate, serialEventEmitter }) {
+  logger.info(`${name} foot Serial port open on ${port} at ${baudRate} baudrate`);
+  const eventName = name + '_SERIAL_PORT_OPEN';
+
+  serialEventEmitter.emit(eventName);
+}
+
+function dataReceiveHandler({ name, serialEventEmitter, data }) {
+  const eventName = name + '_SERIAL_INPUT';
+
+  serialEventEmitter.emit(eventName, data);
+}
+
+export async function connect() {
+  const devicesPort = (await serialUtil.getArduinoPorts()) || [];
+
   try {
     const serialEventEmitter = new EventEmitter();
-    const { port, parser } = serialUtil.initialize(PORT, BAUD_RATE);
 
-    port.on('open', () => {
-      logger.info(`Serial port open on ${PORT} at ${BAUD_RATE} baudrate`);
+    const serialInterfaces = devicesPort.map((devicePort, index) => {
+      const { port, parser } = serialUtil.initialize(devicePort, BAUD_RATE);
+      let deviceName;
 
-      serialEventEmitter.emit(serialEventNames.SERIAL_PORT_OPEN);
-    });
+      if (index === 0) {
+        deviceName = PORT_NAMES.right;
+        // assign right
+      }
 
-    parser.on('data', (data) => {
-      serialEventEmitter.emit(serialEventNames.SERIAL_INPUT, data);
-    });
+      if (index === 1) {
+        // asign left
+        deviceName = PORT_NAMES.left;
+      }
 
-    serialEventEmitter.on('write', (data) => {
-      port.write(data, (err) => {
-        if (err) {
-          return serialEventEmitter.emit(serialEventNames.SERIAL_WRITE_FAIL, err);
-        }
+      if (index > 1) {
+        // assign anything
+        deviceName = devicePort;
+      }
 
-        return serialEventEmitter.emit(serialEventNames.SERIAL_WRITE_SUCCESS);
+      port.on('open', () => {
+        portOpenHandler({ name: deviceName, port: devicePort, baudRate: BAUD_RATE, serialEventEmitter });
       });
+
+      parser.on('data', (data) => {
+        dataReceiveHandler({ data, name: deviceName, serialEventEmitter });
+      });
+
+      return {
+        port,
+        parser,
+      };
     });
 
     return {
-      port: port,
-      parser: parser,
-      serialEventEmitter: serialEventEmitter,
+      serialEventEmitter,
+      serialInterfaces,
     };
   } catch (err) {
     logger.error('Error connecting to serial port. Is serial device attached?');
-
-    return null;
+    // return null;
+    throw err;
   }
 }

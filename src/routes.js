@@ -2,6 +2,7 @@ import { Router } from 'express';
 
 import swaggerSpec from './core/utils/swagger';
 import userRoutes from './app/user/user.route';
+import loggerRoutes from './app/logger/logger.route';
 import subjectRoutes from './app/subject/subject.route';
 
 /**
@@ -27,6 +28,7 @@ router.get('/', (req, res) => {
 });
 
 router.use('/users', userRoutes);
+router.use('/logger', loggerRoutes);
 router.use('/subjects', subjectRoutes);
 
 export default router;

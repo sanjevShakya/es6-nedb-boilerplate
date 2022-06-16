@@ -17,7 +17,7 @@ export function getAllSubjects() {
  * @returns {Promise}
  */
 export function getSubject(id) {
-  return Subject.find({ _id: id });
+  return Subject.findOne({ _id: id });
 }
 
 /**
