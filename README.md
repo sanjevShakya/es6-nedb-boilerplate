@@ -14,3 +14,11 @@ The overall system squence diagram is given below:
 
 ![image](https://user-images.githubusercontent.com/9900412/174106042-edd7639b-6a0a-4547-84df-b2f1a47bd43b.png)
 
+# Project Setup Guide
+
+1. Clone the repository
+2. yarn
+3. connect the Arduino BLE sense 33 in any USB port
+4. cp .env.example .env
+5. yarn start:dev
+
